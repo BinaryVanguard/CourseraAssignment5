@@ -40,7 +40,7 @@ function divideTriangleInner(p, a, b, c, bNormalize, count) {  //hide this funct
         divideTriangleInner(p, bc, ab, b, bNormalize, count);
         //divideTriangleInner(p, c, ac, bc, bNormalize, count);
         //divideTriangleInner(p, b, bc, ab, bNormalize, count);
-        //divideTriangleInner(p, ab, ac, bc, bNormalize, count);
+        divideTriangleInner(p, ab, ac, bc, bNormalize, count);
     }
 }
 
