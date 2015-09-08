@@ -6,6 +6,7 @@ var gl;
 var camera;
 var mPersp;
 var program;
+var tex2dProgram;
 
 var sphere;
 
@@ -234,50 +235,63 @@ function CreateTetraTexBottom(subdivisions) {
     var final_points = [];
     for (var i = 0; i < points.length; i += 3)
         [].push.apply(final_points, divideTriangle(points[i], points[i + 1], points[i + 2], true, subdivisions));
+    
+    var tex_coords = getTexCoords(final_points);
 
-    var colors = [];
-
-    for (var i = 0; i < 3; ++i)
-        colors.push([1, 0, 0, 1]);
-    for (var i = 0; i < 3; ++i)
-        colors.push([0, 1, 0, 1]);
-    for (var i = 0; i < 3; ++i)
-        colors.push([0, 0, 1, 1]);
-
-    var final_colors = [];
-    for (var i = 0; i < colors.length; i += 3)
-        [].push.apply(final_colors, divideTriangle(colors[i], colors[i + 1], colors[i + 2], false, subdivisions));
+    gl.useProgram(tex2dProgram);
 
     var pointsBufferId = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, pointsBufferId);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(final_points), gl.STATIC_DRAW);
 
-    var colorsBufferId = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorsBufferId);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(final_colors), gl.STATIC_DRAW);
+    var tex2dBufferId = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tex2dBufferId);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(tex_coords), gl.STATIC_DRAW);
+
+    //texture
+    var textureId = gl.createTexture();
+    var tex = new Image();
+    tex.onload = function () {
+        gl.bindTexture(gl.TEXTURE_2D, textureId);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    };
+    tex.src = "512px-Checkerboard_pattern.svg.png";
 
     render = function () {
-        var vPosition = gl.getAttribLocation(program, "vPosition");
-        var vColor = gl.getAttribLocation(program, "vColor");
+
+        gl.useProgram(tex2dProgram);
+
+        var vPosition = gl.getAttribLocation(tex2dProgram, "vPosition");
+        var vTex = gl.getAttribLocation(tex2dProgram, "vTex");
 
         gl.bindBuffer(gl.ARRAY_BUFFER, pointsBufferId);
         gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, colorsBufferId);
-        gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, tex2dBufferId);
+        gl.vertexAttribPointer(vTex, 2, gl.FLOAT, false, 0, 0);
 
         gl.enableVertexAttribArray(vPosition);
-        gl.enableVertexAttribArray(vColor);
+        gl.enableVertexAttribArray(vTex);
 
-        var u_mL2W = gl.getUniformLocation(program, "mL2W");
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, textureId);
+        
+        var u_mL2W = gl.getUniformLocation(tex2dProgram, "mL2W");
         gl.uniformMatrix4fv(u_mL2W, false, flatten(mat4()));
+
+        var u_uSampler = gl.getUniformLocation(tex2dProgram, "uSampler");
+        gl.uniform1i(u_uSampler, 0);
 
         gl.drawArrays(gl.TRIANGLES, 0, final_points.length);
     };
 
     return {
         points: final_points,
-        colors: final_colors,
+        tex2d_coords: tex_coords,
         render: render
     };
 }
@@ -340,11 +354,15 @@ function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
+    tex2dProgram = initShaders(gl, "vertex-tex2d-shader", "fragment-tex2d-shader");
+
     camera = RefFrame(vec3(0, 0, 2));
     mPersp = perspective(75, canvas.width / canvas.height, 1, 1000);
 
-    sphere = CreateTetrahedronTop(2);
+    //sphere = CreateTetrahedronTop(2);
     //sphere = CreateTetrahedronBottom(3);
+
+    sphere = CreateTetraTexBottom(2);
 
     requestAnimationFrame(draw);
 
@@ -356,7 +374,7 @@ function draw(time) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     var mFinal = mult(mPersp, camera.getMatrix());
-    var u_mMVP = gl.getUniformLocation(program, "mMVP");
+    var u_mMVP = gl.getUniformLocation(tex2dProgram, "mMVP");
     gl.uniformMatrix4fv(u_mMVP, false, flatten(mFinal));
 
     sphere.render();

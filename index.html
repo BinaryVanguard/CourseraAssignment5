@@ -27,6 +27,32 @@
             gl_FragColor = fColor;
         }   
     </script>
+    <script id="vertex-tex2d-shader" type="x-shader/x-vertex">
+
+        uniform mat4 mMVP;
+        uniform mat4 mL2W;
+
+        attribute vec3 vPosition;
+        attribute vec2 vTex;
+
+        varying vec2 fTex;
+
+        void main() {
+            gl_Position = mMVP * mL2W * vec4(vPosition, 1);
+            fTex = vTex;
+        }
+    </script>
+    <script id="fragment-tex2d-shader" type="x-shader/x-frament">
+        precision mediump float;
+
+        varying vec2 fTex;
+
+        uniform sampler2D uSampler;
+
+        void main() {
+            gl_FragColor = texture2D(uSampler, vec2(fTex.s, fTex.t));
+        }
+    </script>
     <script type="text/javascript" src="./Common/webgl-utils.js"></script>
     <script type="text/javascript" src="./Common/initShaders.js"></script>
     <script type="text/javascript" src="./Common/MV.js"></script>
