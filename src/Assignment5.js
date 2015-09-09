@@ -9,6 +9,11 @@ var program;
 var tex2dProgram;
 
 var sphere;
+var sTop;
+var sBottom;
+
+var textureIds;
+var currentTextureId = 0;
 
 //is it possible to hide this as an inner fuction inside the calling function ?
 function divideTriangleInner(p, a, b, c, bNormalize, count) {  //hide this function using same name, it will always call the inner
@@ -34,12 +39,18 @@ function divideTriangleInner(p, a, b, c, bNormalize, count) {  //hide this funct
         --count;
 
         // three new triangles
+        //divideTriangleInner(p, ac, bc, c, bNormalize, count);
+        //if (count < 2)
+            divideTriangleInner(p, a, ab, ac, bNormalize, count);
+        //if (count < 2)
+            divideTriangleInner(p, b, bc, ab, bNormalize, count);
+        //if (count < 2)
+            divideTriangleInner(p, ac, bc, c, bNormalize, count);
 
-        divideTriangleInner(p, a, ab, ac, bNormalize, count);
-        divideTriangleInner(p, bc, c, ac, bNormalize, count);
-        divideTriangleInner(p, bc, ab, b, bNormalize, count);
+        
         //divideTriangleInner(p, c, ac, bc, bNormalize, count);
         //divideTriangleInner(p, b, bc, ab, bNormalize, count);
+
         divideTriangleInner(p, ab, ac, bc, bNormalize, count);
     }
 }
@@ -52,11 +63,11 @@ function divideTriangle(a, b, c, bNormalize, count) {
     return p;
 }
 
-function getTexCoords(points) {
+function getTexCoords(points, flip_x) {
     var texts = [];
 
     for (var i = 0; i < points.length; ++i) {
-        var x = 0.5 + Math.atan2(points[i][2], points[i][0]) / (Math.PI * 2); //atan2 is in y, x order; here we use the z as a y coord.
+        var x = 0.5 - Math.atan2(points[i][2], points[i][0]) / (Math.PI * 2); //atan2 is in y, x order; here we use the z as a y coord.
         var y = 0.5 - Math.asin(points[i][1]) / Math.PI;
         texts.push(vec2(x, y));
     }
@@ -210,6 +221,79 @@ function CreateTetrahedronBottom(subdivisions) {
     };
 }
 
+function CreateTetraTexTop(subdivisions) {
+    if (!Number.isInteger(subdivisions) || subdivisions < 0)
+        subdivisions = 0;
+
+    var points = [];
+
+    var root12 = Math.sqrt(1 / 12);
+    var root23 = Math.sqrt(2 / 3);
+    var root13 = Math.sqrt(1 / 3);
+
+    points.push([.5, 0, root12]);
+    points.push([-.5, 0, root12]);
+    points.push([0, root23, 0]);
+
+    points.push([0, 0, -root13]);
+    points.push([.5, 0, root12]);
+    points.push([0, root23, 0]);
+
+    points.push([-.5, 0, root12]);
+    points.push([0, 0, -root13]);
+    points.push([0, root23, 0]);
+
+    var final_points = [];
+    for (var i = 0; i < points.length; i += 3)
+        [].push.apply(final_points, divideTriangle(points[i], points[i + 1], points[i + 2], true, subdivisions));
+
+    var tex_coords = getTexCoords(final_points);
+
+    gl.useProgram(tex2dProgram);
+
+    var pointsBufferId = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointsBufferId);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(final_points), gl.STATIC_DRAW);
+
+    var tex2dBufferId = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tex2dBufferId);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(tex_coords), gl.STATIC_DRAW);
+
+    render = function () {
+
+        gl.useProgram(tex2dProgram);
+
+        var vPosition = gl.getAttribLocation(tex2dProgram, "vPosition");
+        var vTex = gl.getAttribLocation(tex2dProgram, "vTex");
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, pointsBufferId);
+        gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, tex2dBufferId);
+        gl.vertexAttribPointer(vTex, 2, gl.FLOAT, false, 0, 0);
+
+        gl.enableVertexAttribArray(vPosition);
+        gl.enableVertexAttribArray(vTex);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, textureIds[0]);
+
+        var u_mL2W = gl.getUniformLocation(tex2dProgram, "mL2W");
+        gl.uniformMatrix4fv(u_mL2W, false, flatten(mat4()));
+
+        var u_uSampler = gl.getUniformLocation(tex2dProgram, "uSampler");
+        gl.uniform1i(u_uSampler, 0);
+
+        gl.drawArrays(gl.TRIANGLES, 0, final_points.length);
+    };
+
+    return {
+        points: final_points,
+        tex2d_coords: tex_coords,
+        render: render
+    };
+}
+
 function CreateTetraTexBottom(subdivisions) {
     if (!Number.isInteger(subdivisions) || subdivisions < 0)
         subdivisions = 0;
@@ -248,19 +332,6 @@ function CreateTetraTexBottom(subdivisions) {
     gl.bindBuffer(gl.ARRAY_BUFFER, tex2dBufferId);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(tex_coords), gl.STATIC_DRAW);
 
-    //texture
-    var textureId = gl.createTexture();
-    var tex = new Image();
-    tex.onload = function () {
-        gl.bindTexture(gl.TEXTURE_2D, textureId);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-    };
-    tex.src = "512px-Checkerboard_pattern.svg.png";
-
     render = function () {
 
         gl.useProgram(tex2dProgram);
@@ -278,7 +349,7 @@ function CreateTetraTexBottom(subdivisions) {
         gl.enableVertexAttribArray(vTex);
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, textureId);
+        gl.bindTexture(gl.TEXTURE_2D, textureIds[currentTextureId]);
         
         var u_mL2W = gl.getUniformLocation(tex2dProgram, "mL2W");
         gl.uniformMatrix4fv(u_mL2W, false, flatten(mat4()));
@@ -296,6 +367,44 @@ function CreateTetraTexBottom(subdivisions) {
     };
 }
 
+function initTextures() {
+
+    //THIS IS THE ORIGINAL WAY YOU IMPLEMENTED IT... but you tried some stuff to get rid of the seam at x-1... how do you do that?
+    ////texture
+    //var textureId = gl.createTexture();
+    //var tex = new Image();
+    //tex.onload = function () {
+    //    gl.bindTexture(gl.TEXTURE_2D, textureId);
+    //    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+    //    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    //    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    //    gl.generateMipmap(gl.TEXTURE_2D);
+    //    gl.bindTexture(gl.TEXTURE_2D, null);
+    //};
+    ////tex.crossOrigin = '';
+    //tex.src = "PathfinderMap.jpg";
+
+    //texture
+    var ids = []
+    var textureId = gl.createTexture();
+    var tex = new Image();
+    tex.onload = function () {
+        gl.bindTexture(gl.TEXTURE_2D, textureId);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    };
+    //tex.crossOrigin = '';
+    tex.src = "PathfinderMap.jpg";
+
+    ids.push(textureId);
+
+    return ids;
+}
 
 function hookupControls() {
 
@@ -332,6 +441,17 @@ function hookupControls() {
         moveCamera = false;
         point = {};
     });
+
+
+    for (var i = 0; i < textureIds.length; ++i) {
+        var input = document.createElement('div');
+        input.style = 'display: inline-block; vertical-align: top;';
+        input.innerHTML = '<input type="radio" value="' + i + '" '
+            + (i === 0 ? 'checked' : '')
+            + '> Texture #1';
+        document.body.appendChild(input); // put it into the DOM
+        input.children[0].addEventListener("change", function () { currentTextureId = this.value; });
+    }
 }
 
 function init() {
@@ -362,11 +482,14 @@ function init() {
     //sphere = CreateTetrahedronTop(2);
     //sphere = CreateTetrahedronBottom(3);
 
-    sphere = CreateTetraTexBottom(2);
-
-    requestAnimationFrame(draw);
+    sTop = CreateTetraTexTop(6);
+    sBottom = CreateTetraTexBottom(6);
+    
+    textureIds = initTextures();
 
     hookupControls();
+
+    requestAnimationFrame(draw);
 }
 
 function draw(time) {
@@ -377,7 +500,9 @@ function draw(time) {
     var u_mMVP = gl.getUniformLocation(tex2dProgram, "mMVP");
     gl.uniformMatrix4fv(u_mMVP, false, flatten(mFinal));
 
-    sphere.render();
+    //sphere.render();
+    sTop.render();
+    sBottom.render();
 
     requestAnimationFrame(draw);
 }

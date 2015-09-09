@@ -562,16 +562,16 @@ function normalize( u, excludeLastComponent )
     if ( !isFinite(len) ) {
         throw "normalize: vector " + u + " has zero length";
     }
-    
+    var v = [];
     for ( var i = 0; i < u.length; ++i ) {
-        u[i] /= len;
+        v[i] = u[i] / len;
     }
 
     if ( excludeLastComponent ) {
         u.push( last );
     }
             
-    return u;
+    return v;
 }
 
 //----------------------------------------------------------------------------
