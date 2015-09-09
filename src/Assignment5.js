@@ -276,7 +276,7 @@ function CreateTetraTexTop(subdivisions) {
         gl.enableVertexAttribArray(vTex);
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, textureIds[0]);
+        gl.bindTexture(gl.TEXTURE_2D, textureIds[currentTextureId]);
 
         var u_mL2W = gl.getUniformLocation(tex2dProgram, "mL2W");
         gl.uniformMatrix4fv(u_mL2W, false, flatten(mat4()));
@@ -367,12 +367,27 @@ function CreateTetraTexBottom(subdivisions) {
     };
 }
 
-function initTextures() {
+function genCheckerBoardText(texSize, numChecks) {
+    var image = new Uint8Array(4 * texSize * texSize);
 
+    for (var i = 0; i < texSize; i++) {
+        for (var j = 0; j < texSize; j++) {
+            var patchx = Math.floor(i / (texSize / numChecks));
+            var patchy = Math.floor(j / (texSize / numChecks));
+            var c = (patchx % 2 ^ patchy % 2) ? 255: 0;
+            //c = 255*(((i & 0x8) == 0) ^ ((j & 0x8)  == 0))
+            image[4 * i * texSize + 4 * j] = c;
+            image[4 * i * texSize + 4 * j + 1] = c;
+            image[4 * i * texSize + 4 * j + 2] = c;
+            image[4 * i * texSize + 4 * j + 3] = 255;
+        }
+    }
+
+    return image;
+}
+
+function handleGenTextureLoaded(image, textureId, texSize) {
     //THIS IS THE ORIGINAL WAY YOU IMPLEMENTED IT... but you tried some stuff to get rid of the seam at x-1... how do you do that?
-    ////texture
-    //var textureId = gl.createTexture();
-    //var tex = new Image();
     //tex.onload = function () {
     //    gl.bindTexture(gl.TEXTURE_2D, textureId);
     //    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
@@ -381,28 +396,54 @@ function initTextures() {
     //    gl.generateMipmap(gl.TEXTURE_2D);
     //    gl.bindTexture(gl.TEXTURE_2D, null);
     //};
-    ////tex.crossOrigin = '';
-    //tex.src = "PathfinderMap.jpg";
 
+    gl.bindTexture(gl.TEXTURE_2D, textureId);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, texSize, texSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function handleTextureLoaded(image, textureId) {
+    //THIS IS THE ORIGINAL WAY YOU IMPLEMENTED IT... but you tried some stuff to get rid of the seam at x-1... how do you do that?
+    //tex.onload = function () {
+    //    gl.bindTexture(gl.TEXTURE_2D, textureId);
+    //    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+    //    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    //    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    //    gl.generateMipmap(gl.TEXTURE_2D);
+    //    gl.bindTexture(gl.TEXTURE_2D, null);
+    //};
+    
+    gl.bindTexture(gl.TEXTURE_2D, textureId);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function initTextures() {
     //texture
     var ids = []
-    var textureId = gl.createTexture();
-    var tex = new Image();
-    tex.onload = function () {
-        gl.bindTexture(gl.TEXTURE_2D, textureId);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-    };
-    //tex.crossOrigin = '';
-    tex.src = "PathfinderMap.jpg";
 
+    var textureId = gl.createTexture();
+    var tex = genCheckerBoardText(256, 8);
+    handleGenTextureLoaded(tex, textureId, 256);
     ids.push(textureId);
 
+    var textureId2 = gl.createTexture();
+    var tex2 = new Image();
+    tex2.onload = function () { handleTextureLoaded(tex2, textureId2); };
+    //tex.crossOrigin = '';
+    tex2.src = "PathfinderMap.jpg";
+    ids.push(textureId2);
+    
     return ids;
 }
 
@@ -446,9 +487,9 @@ function hookupControls() {
     for (var i = 0; i < textureIds.length; ++i) {
         var input = document.createElement('div');
         input.style = 'display: inline-block; vertical-align: top;';
-        input.innerHTML = '<input type="radio" value="' + i + '" '
+        input.innerHTML = '<input type="radio" name = "texture" value="' + i + '" '
             + (i === 0 ? 'checked' : '')
-            + '> Texture #1';
+            + '> Texture #' + i;
         document.body.appendChild(input); // put it into the DOM
         input.children[0].addEventListener("change", function () { currentTextureId = this.value; });
     }
