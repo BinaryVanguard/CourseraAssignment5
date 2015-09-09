@@ -76,7 +76,8 @@ function getTexCoords(points, flip_x) {
 }
 
 function CreateTetrahedronTop(subdivisions) {
-    if (!Number.isInteger(subdivisions) || subdivisions < 0)
+    //if (!Number.isInteger(subdivisions) || subdivisions < 0) is integer isn't defined in some browsers....
+    if(subdivisions === undefined || subdivisions < 0)
         subdivisions = 0;
 
     var points = [];
