@@ -486,11 +486,10 @@ function hookupControls() {
 
     for (var i = 0; i < textureIds.length; ++i) {
         var input = document.createElement('div');
-        input.style = 'display: inline-block; vertical-align: top;';
         input.innerHTML = '<input type="radio" name = "texture" value="' + i + '" '
             + (i === 0 ? 'checked' : '')
             + '> Texture #' + i;
-        document.body.appendChild(input); // put it into the DOM
+        document.getElementById("input-container").appendChild(input); // put it into the DOM
         input.children[0].addEventListener("change", function () { currentTextureId = this.value; });
     }
 }
