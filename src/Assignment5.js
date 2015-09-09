@@ -449,8 +449,8 @@ function initTextures() {
 
 function hookupControls() {
 
-    let moveCamera = false;
-    let point = {};
+    var moveCamera = false;
+    var point = {};
     canvas.addEventListener("mousedown", function (e) {
         moveCamera = true;
         point.x = e.pageX;
